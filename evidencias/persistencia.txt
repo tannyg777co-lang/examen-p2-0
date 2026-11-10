@@ -1,0 +1,43 @@
+$ docker compose down
+$ docker compose up -d --wait
+ Container tanny-api-1 Stopping
+ Container tanny-api-1 Stopped
+ Container tanny-api-1 Removing
+ Container tanny-api-1 Removed
+ Container tanny-db-1 Stopping
+ Container tanny-hadoop-1 Stopping
+ Container tanny-hadoop-1 Stopped
+ Container tanny-hadoop-1 Removing
+ Container tanny-db-1 Stopped
+ Container tanny-db-1 Removing
+ Container tanny-hadoop-1 Removed
+ Container tanny-db-1 Removed
+ Network tanny_datamart_net Removing
+ Network tanny_datamart_net Removed
+ Network tanny_datamart_net Creating
+ Network tanny_datamart_net Creating
+ Network tanny_datamart_net Created
+ Network tanny_datamart_net Created
+ Container tanny-db-1 Creating
+ Container tanny-hadoop-1 Creating
+ Container tanny-hadoop-1 Created
+ Container tanny-db-1 Created
+ Container tanny-api-1 Creating
+ Container tanny-api-1 Created
+ Container tanny-db-1 Starting
+ Container tanny-hadoop-1 Starting
+ Container tanny-db-1 Started
+ Container tanny-hadoop-1 Started
+ Container tanny-db-1 Waiting
+ Container tanny-db-1 Healthy
+ Container tanny-api-1 Starting
+ Container tanny-api-1 Started
+ Container tanny-api-1 Waiting
+ Container tanny-hadoop-1 Waiting
+ Container tanny-db-1 Waiting
+ Container tanny-db-1 Healthy
+ Container tanny-hadoop-1 Healthy
+ Container tanny-api-1 Healthy
+
+$ GET /resultados
+Persistencia verificada: 120 resultados disponibles tras down/up

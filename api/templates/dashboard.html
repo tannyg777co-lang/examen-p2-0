@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resultados DataMart</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f3f6fb;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      padding: 32px max(24px, calc((100vw - 1280px) / 2));
+      color: #fff;
+      background: linear-gradient(120deg, #123a72, #176b87);
+    }
+    .eyebrow { margin: 0 0 8px; color: #b7daf4; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); letter-spacing: -.03em; }
+    header p:last-child { margin: 8px 0 0; color: #d7e9f7; }
+    main { width: min(1280px, calc(100% - 32px)); margin: 28px auto 48px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .card, .table-panel { border: 1px solid #e3e9f2; border-radius: 14px; background: #fff; box-shadow: 0 4px 16px #16345b0a; }
+    .card { padding: 18px 20px; }
+    .card span { display: block; color: #66748a; font-size: 13px; }
+    .card strong { display: block; margin-top: 7px; font-size: clamp(13px, 1.4vw, 19px); letter-spacing: -.035em; overflow-wrap: anywhere; }
+    .table-panel { overflow: hidden; }
+    .table-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 20px; }
+    h2 { margin: 0; font-size: 17px; }
+    #status { color: #66748a; font-size: 13px; }
+    .table-scroll { overflow: auto; max-height: 68vh; border-top: 1px solid #e8edf4; }
+    table { width: 100%; min-width: 1150px; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+    th, td { padding: 12px 13px; border-bottom: 1px solid #edf1f6; text-align: right; white-space: nowrap; }
+    thead th { position: sticky; top: 0; z-index: 1; color: #526178; background: #f8fafd; font-size: 12px; font-weight: 700; }
+    th:first-child, td:first-child { position: sticky; left: 0; text-align: left; }
+    thead th:first-child { z-index: 2; background: #f8fafd; }
+    tbody th { color: #25344d; background: #fff; font-size: 13px; font-weight: 650; }
+    tbody tr:hover td, tbody tr:hover th { background: #f5f9ff; }
+    td { color: #3a4960; font-size: 12px; }
+    .total-col { color: #123a72; font-weight: 700; background: #f5f8fd; }
+    tfoot th, tfoot td { position: sticky; bottom: 0; color: #fff; background: #18395f; font-weight: 700; }
+    .error { padding: 24px; color: #a32132; }
+    @media (max-width: 640px) {
+      header { padding: 25px 20px; }
+      main { width: min(100% - 20px, 1280px); margin-top: 18px; }
+      .cards { gap: 8px; }
+      .card { padding: 13px 10px; }
+      .card strong { font-size: 17px; }
+      .card span { font-size: 11px; }
+      .table-heading { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">DataMart · Matrícula 125054310</p>
+    <h1>Ingresos por categoría y mes</h1>
+    <p>Ventas de 2025 · 5 millones de registros procesados con Hadoop MapReduce</p>
+  </header>
+  <main>
+    <section class="cards" aria-label="Resumen">
+      <article class="card"><span>Categorías</span><strong id="category-count">—</strong></article>
+      <article class="card"><span>Meses analizados</span><strong id="month-count">—</strong></article>
+      <article class="card"><span>Ingreso anual total</span><strong id="grand-total">—</strong></article>
+    </section>
+    <section class="table-panel">
+      <div class="table-heading">
+        <h2>Ingreso total (cantidad × precio unitario)</h2>
+        <span id="status" role="status">Cargando resultados…</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead id="table-head"></thead>
+          <tbody id="table-body"></tbody>
+          <tfoot id="table-foot"></tfoot>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script>
+    const months = Array.from({ length: 12 }, (_, i) => `2025-${String(i + 1).padStart(2, "0")}`);
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const money = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
+    const toCents = value => Math.round(value * 100);
+    const fromCents = cents => money.format(cents / 100);
+    const cell = (tag, text, className = "") => {
+      const element = document.createElement(tag);
+      element.textContent = text;
+      if (className) element.className = className;
+      return element;
+    };
+
+    async function loadResults() {
+      const status = document.getElementById("status");
+      try {
+        const response = await fetch("/resultados");
+        if (!response.ok) throw new Error(`La API respondió ${response.status}`);
+        const records = await response.json();
+        const categories = new Map();
+        for (const record of records) {
+          if (!categories.has(record.categoria)) categories.set(record.categoria, new Map());
+          categories.get(record.categoria).set(record.mes, toCents(record.ingreso_total));
+        }
+
+        const head = document.getElementById("table-head");
+        const headerRow = document.createElement("tr");
+        headerRow.append(cell("th", "Categoría"));
+        monthNames.forEach(name => headerRow.append(cell("th", name)));
+        headerRow.append(cell("th", "Total anual", "total-col"));
+        head.append(headerRow);
+
+        const body = document.getElementById("table-body");
+        const monthlyTotals = Array(12).fill(0);
+        let grandTotal = 0;
+        for (const [category, values] of [...categories].sort(([a], [b]) => a.localeCompare(b, "es"))) {
+          const row = document.createElement("tr");
+          row.append(cell("th", category));
+          let annualTotal = 0;
+          months.forEach((month, index) => {
+            const cents = values.get(month) ?? 0;
+            monthlyTotals[index] += cents;
+            annualTotal += cents;
+            row.append(cell("td", values.has(month) ? fromCents(cents) : "—"));
+          });
+          grandTotal += annualTotal;
+          row.append(cell("td", fromCents(annualTotal), "total-col"));
+          body.append(row);
+        }
+
+        const foot = document.getElementById("table-foot");
+        const totalRow = document.createElement("tr");
+        totalRow.append(cell("th", "Total por mes"));
+        monthlyTotals.forEach(total => totalRow.append(cell("td", fromCents(total))));
+        totalRow.append(cell("td", fromCents(grandTotal)));
+        foot.append(totalRow);
+
+        document.getElementById("category-count").textContent = categories.size;
+        document.getElementById("month-count").textContent = months.length;
+        document.getElementById("grand-total").textContent = fromCents(grandTotal);
+        status.textContent = `${records.length} resultados · actualizado desde la API`;
+      } catch (error) {
+        status.textContent = "No se pudieron cargar los resultados.";
+        const message = cell("p", error.message, "error");
+        document.querySelector(".table-scroll").replaceChildren(message);
+      }
+    }
+
+    loadResults();
+  </script>
+</body>
+</html>

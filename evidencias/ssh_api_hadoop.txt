@@ -1,0 +1,2 @@
+$ docker compose exec -T api ssh hadoop@hadoop hostname
+hadoop

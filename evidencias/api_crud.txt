@@ -1,0 +1,7 @@
+GET /resultados -> HTTP 200; 120 registros
+GET /resultados/Electronica -> HTTP 200; 12 meses
+GET /resultados/Electronica/2025-03 -> HTTP 200; $349,938,727.67 MXN
+POST /resultados -> HTTP 201
+PUT /resultados/Evidencia-cfec12f0/2026-01 -> HTTP 200
+DELETE /resultados/Evidencia-cfec12f0/2026-01 -> HTTP 200
+Verificación final: 120 filas; sin datos de prueba residuales
