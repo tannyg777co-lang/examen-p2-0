@@ -52,64 +52,110 @@ examen-p2-125054310/
 └── evidencias/
 ```
 
-## Cómo reproducir
-
-```bash
-# 0) Generar el dataset dentro de data/
-cd data && python3 ../scripts/generar_dataset.py 125054310 && cd ..
-
-# 1) Variables de entorno (después cambia la contraseña en .env)
+Reproducir paso a paso
+1. Preparar el entorno
+bash
+cd ruta/del/proyecto
+mkdir -p evidencias
 cp .env.example .env
 
-# 2) Levantar todo con un solo comando
+Contenido esperado del .env:
+
+MATRICULA=125054310
+API_PORT=5000
+POSTGRES_DB=datamart
+POSTGRES_USER=datamart
+POSTGRES_PASSWORD=change-this-password
+2. Generar el dataset
+
+Solo si aún no existe data/ventas_125054310.csv:
+
+bash
+cd data && python3 ../scripts/generar_dataset.py 125054310 && cd ..
+3. Levantar los servicios
+bash
 docker compose up --build -d
 docker compose ps
 
-# 3) Verificar Hadoop
-docker compose exec hadoop hadoop version
+Esperado: db en healthy, y api y hadoop en Up.
 
-# 4) SSH sin contraseña
-docker compose exec -u hadoop hadoop ssh localhost hostname     # dentro del contenedor
-docker compose exec api ssh hadoop@hadoop hostname              # api -> hadoop por nombre de servicio
+4. Verificar Hadoop y SSH
+bash
+docker compose exec hadoop hadoop version
+docker compose exec -u hadoop hadoop ssh localhost hostname
+docker compose exec api ssh hadoop@hadoop hostname
 docker compose exec api ssh hadoop@hadoop hadoop version
 
-# 5) Job MapReduce + secuencial + comparación (imprime los tiempos con `time`)
+Esperado: muestra la versión de Hadoop y el hostname sin pedir contraseña.
+
+5. Ejecutar MapReduce, secuencial y comparación
+bash
 docker compose exec -u hadoop hadoop bash /opt/mapreduce/run_job.sh 2>&1 | tee evidencias/job.log
 
-# 6) Cargar resultados a PostgreSQL
+Esperado en evidencias/job.log:
+
+Job ... completed successfully
+Map input records=5000001 y Reduce output records=120
+Los tiempos real del job MapReduce y del script secuencial
+Al final: OK: MapReduce y secuencial dan exactamente el mismo resultado.
+
+Con un solo equipo (modo local de Hadoop), el secuencial puede ser más rápido que MapReduce. El costo de iniciar la JVM, el shuffle y el ordenamiento pesa más que el cálculo. MapReduce muestra su ventaja con volúmenes mayores y un clúster real.
+
+6. Cargar el resultado a PostgreSQL
+bash
 docker compose exec api python scripts/cargar_resultados.py
 
-# 7) Consultar la API (cambia 5000 si modificaste API_PORT)
-http://localhost:5000/dashboard   # tabla visual de categorías, meses y totales
+Esperado:
+
+Cargados 120 registros desde /data/output/resultado/part-00000
+Categorias (10): Abarrotes, Bebidas, Deportes, Electronica, Farmacia, Hogar, Juguetes, Mascotas, Papeleria, Ropa
+7. Consultar la API y el dashboard
+
+Dashboard (usar http://, no https://): http://localhost:5000/dashboard
+
+bash
 curl http://localhost:5000/resultados
 curl http://localhost:5000/resultados/Electronica
 curl http://localhost:5000/resultados/Electronica/2025-03
-curl -X POST http://localhost:5000/resultados -H "Content-Type: application/json" \
-     -d '{"categoria":"Ropa","mes":"2026-01","ingreso_total":123.45}'
-curl -X PUT  http://localhost:5000/resultados/Ropa/2026-01 -H "Content-Type: application/json" \
-     -d '{"ingreso_total":999.90}'
+Método	Ruta	Descripción
+GET	/dashboard	Dashboard web
+GET	/resultados	Todos los registros
+GET	/resultados/<categoria>	Registros de una categoría
+GET	/resultados/<categoria>/<mes>	Un registro
+POST	/resultados	Crear registro
+PUT	/resultados/<categoria>/<mes>	Actualizar ingreso_total
+DELETE	/resultados/<categoria>/<mes>	Eliminar registro
+
+Prueba del CRUD:
+
+bash
+# Crear
+curl -X POST http://localhost:5000/resultados \
+  -H "Content-Type: application/json" \
+  -d '{"categoria":"Ropa","mes":"2026-01","ingreso_total":123.45}'
+
+# Actualizar
+curl -X PUT http://localhost:5000/resultados/Ropa/2026-01 \
+  -H "Content-Type: application/json" \
+  -d '{"ingreso_total":999.90}'
+
+# Eliminar
 curl -X DELETE http://localhost:5000/resultados/Ropa/2026-01
 
-# 8) Persistencia
-docker compose down
+Esperado: el POST devuelve el registro con 123.45, el PUT lo devuelve con 999.9 y el DELETE responde con {"borrado": {...}}.
+
+8. Comprobar la persistencia
+bash
+docker compose down        # sin -v, para conservar el volumen
 docker compose up -d
-curl http://localhost:5000/resultados        # los 120 registros siguen ahí
-```
+curl -s http://localhost:5000/resultados | head -c 200
 
-> En PowerShell usa `curl.exe` en lugar de `curl`, o `Invoke-RestMethod`.
+Esperado: los registros siguen apareciendo sin volver a cargar nada.
 
-### Endpoints
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/resultados` | Todos los registros (120), ordenados por categoría y mes |
-| GET | `/resultados/<categoria>` | Los 12 meses de una categoría (la clave de mi pregunta; no distingue mayúsculas) |
-| GET | `/resultados/<categoria>/<mes>` | Un registro, con `mes` en formato `AAAA-MM` |
-| POST | `/resultados` | Crea un registro `{categoria, mes, ingreso_total}` |
-| PUT | `/resultados/<categoria>/<mes>` | Actualiza `ingreso_total` |
-| DELETE | `/resultados/<categoria>/<mes>` | Borra un registro |
-
-La tabla `ingresos_categoria_mes` usa una **llave primaria compuesta** `(categoria, mes)`, porque ninguna de las dos columnas identifica sola un registro.
+Detener y limpiar
+bash
+docker compose down        # detiene, conserva los datos
+docker compose down -v     # detiene y borra el volumen de PostgreSQL
 
 ## Resultado del job
 
