@@ -1,13 +1,36 @@
-# Examen Parcial 2 — Pipeline DataMart con Docker, Hadoop y PostgreSQL
+# 📊 Examen Parcial 2 — Pipeline DataMart
+
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Hadoop](https://img.shields.io/badge/Hadoop-3.3.6-66CCFF?logo=apachehadoop&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-API-000000?logo=flask&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white)
+
+> Pipeline completo con **Docker**, **Hadoop MapReduce**, **PostgreSQL** y una **API REST en Flask**.
 
 | | |
 |---|---|
-| **Alumna** | Tanny Geraldine Correa Chávez |
-| **Matrícula** | 125054310 |
-| **Pregunta asignada** (último dígito **0**) | **Ingreso total (cantidad × precio_unitario) por categoría y mes** |
+|  **Alumna** | Tanny Geraldine Correa Chávez |
+|  **Matrícula** | 125054310 |
+| **Pregunta asignada** (último dígito **0**) | **Ingreso total (`cantidad × precio_unitario`) por categoría y mes** |
 | **Dataset** | `ventas_125054310.csv` — 5,000,000 registros (~336 MB), 10 categorías × 12 meses de 2025 |
 
-## Arquitectura
+---
+
+## 📑 Contenido
+
+- [ Arquitectura](#️-arquitectura)
+- [ Estructura](#-estructura)
+- [ Reproducir paso a paso](#-reproducir-paso-a-paso)
+- [ Resultado del job](#-resultado-del-job)
+- [ Comparativa de rendimiento](#️-comparativa-de-rendimiento-c2)
+- [ Teoría](#-teoría-parte-e)
+- [Evidencias](#-evidencias)
+- [ Guía rápida para la defensa oral](#-guía-rápida-para-la-defensa-oral)
+
+---
+
+##  Arquitectura
 
 ```
                  red: datamart_net (bridge)
@@ -20,28 +43,32 @@
  └────────────────────────┘     └──────────────┘      └────────────────────┘
 ```
 
-1. **hadoop** procesa el CSV con Hadoop Streaming (`mapper.py` / `reducer.py`) y deja `part-00000` en el volumen `hadoop_output`.
-2. **api** lee ese archivo con `cargar_resultados.py` y lo inserta en la tabla `ingresos_categoria_mes` de **db**.
-3. **api** expone la tabla por HTTP. La base vive en el volumen nombrado `pg_data`, así que persiste.
+**Flujo de datos:**
+
+1.  **hadoop** procesa el CSV con Hadoop Streaming (`mapper.py` / `reducer.py`) y deja `part-00000` en el volumen `hadoop_output`.
+2.  **api** lee ese archivo con `cargar_resultados.py` y lo inserta en la tabla `ingresos_categoria_mes` de **db**.
+3.  **api** expone la tabla por HTTP. La base vive en el volumen nombrado `pg_data`, así que **persiste**.
+
+---
 
 ## Estructura
 
 ```
 examen-p2-125054310/
 ├── README.md
-├── .gitignore            # *.csv y .env
-├── .gitattributes        # fuerza LF (evita errores \r en .sh al clonar en Windows)
+├── .gitignore               # *.csv y .env
+├── .gitattributes           # fuerza LF (evita errores \r en .sh al clonar en Windows)
 ├── .env.example
 ├── docker-compose.yml
-├── data/                 # aquí va ventas_125054310.csv (NO se sube)
+├── data/                    # aquí va ventas_125054310.csv (NO se sube)
 ├── hadoop/
 │   ├── Dockerfile
-│   └── entrypoint.sh     # genera llaves SSH y arranca sshd
+│   └── entrypoint.sh        # genera llaves SSH y arranca sshd
 ├── mapreduce/
 │   ├── mapper.py
 │   ├── reducer.py
 │   ├── secuencial.py
-│   └── run_job.sh        # corre MapReduce + secuencial, mide tiempos y compara
+│   └── run_job.sh           # corre MapReduce + secuencial, mide tiempos y compara
 ├── api/
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -52,114 +79,151 @@ examen-p2-125054310/
 └── evidencias/
 ```
 
-Reproducir paso a paso
-1. Preparar el entorno
-bash
+---
+
+## 🚀 Reproducir paso a paso
+
+### 1️ Preparar el entorno
+
+```bash
 cd ruta/del/proyecto
 mkdir -p evidencias
 cp .env.example .env
+```
 
-Contenido esperado del .env:
+Contenido esperado del `.env`:
 
+```env
 MATRICULA=125054310
 API_PORT=5000
 POSTGRES_DB=datamart
 POSTGRES_USER=datamart
 POSTGRES_PASSWORD=change-this-password
-2. Generar el dataset
+```
 
-Solo si aún no existe data/ventas_125054310.csv:
+### 2️ Generar el dataset
 
-bash
+Solo si aún no existe `data/ventas_125054310.csv`:
+
+```bash
 cd data && python3 ../scripts/generar_dataset.py 125054310 && cd ..
-3. Levantar los servicios
-bash
+```
+
+### 3️ Levantar los servicios
+
+```bash
 docker compose up --build -d
 docker compose ps
+```
 
-Esperado: db en healthy, y api y hadoop en Up.
+✅ **Esperado:** `db` en `healthy`, y `api` y `hadoop` en `Up`.
 
-4. Verificar Hadoop y SSH
-bash
+### 4️ Verificar Hadoop y SSH
+
+```bash
 docker compose exec hadoop hadoop version
 docker compose exec -u hadoop hadoop ssh localhost hostname
 docker compose exec api ssh hadoop@hadoop hostname
 docker compose exec api ssh hadoop@hadoop hadoop version
+```
 
-Esperado: muestra la versión de Hadoop y el hostname sin pedir contraseña.
+✅ **Esperado:** muestra la versión de Hadoop y el hostname **sin pedir contraseña**.
 
-5. Ejecutar MapReduce, secuencial y comparación
-bash
+### 5️ Ejecutar MapReduce, secuencial y comparación
+
+```bash
 docker compose exec -u hadoop hadoop bash /opt/mapreduce/run_job.sh 2>&1 | tee evidencias/job.log
+```
 
-Esperado en evidencias/job.log:
+✅ **Esperado en `evidencias/job.log`:**
 
-Job ... completed successfully
-Map input records=5000001 y Reduce output records=120
-Los tiempos real del job MapReduce y del script secuencial
-Al final: OK: MapReduce y secuencial dan exactamente el mismo resultado.
+- `Job ... completed successfully`
+- `Map input records=5000001` y `Reduce output records=120`
+- Los tiempos `real` del job MapReduce y del script secuencial
+- Al final: `OK: MapReduce y secuencial dan exactamente el mismo resultado.`
 
-Con un solo equipo (modo local de Hadoop), el secuencial puede ser más rápido que MapReduce. El costo de iniciar la JVM, el shuffle y el ordenamiento pesa más que el cálculo. MapReduce muestra su ventaja con volúmenes mayores y un clúster real.
+> [!NOTE]
+> Con un solo equipo (modo local de Hadoop), el secuencial puede ser más rápido que MapReduce. El costo de iniciar la JVM, el shuffle y el ordenamiento pesa más que el cálculo. MapReduce muestra su ventaja con volúmenes mayores y un clúster real.
 
-6. Cargar el resultado a PostgreSQL
-bash
+### 6️ Cargar el resultado a PostgreSQL
+
+```bash
 docker compose exec api python scripts/cargar_resultados.py
+```
 
-Esperado:
+✅ **Esperado:**
 
+```
 Cargados 120 registros desde /data/output/resultado/part-00000
 Categorias (10): Abarrotes, Bebidas, Deportes, Electronica, Farmacia, Hogar, Juguetes, Mascotas, Papeleria, Ropa
-7. Consultar la API y el dashboard
+```
 
-Dashboard (usar http://, no https://): http://localhost:5000/dashboard
+### 7️ Consultar la API y el dashboard
 
-bash
+ **Dashboard:** <http://localhost:5000/dashboard>
+
+> [!IMPORTANT]
+> Usar `http://`, no `https://`.
+
+```bash
 curl http://localhost:5000/resultados
 curl http://localhost:5000/resultados/Electronica
 curl http://localhost:5000/resultados/Electronica/2025-03
-Método	Ruta	Descripción
-GET	/dashboard	Dashboard web
-GET	/resultados	Todos los registros
-GET	/resultados/<categoria>	Registros de una categoría
-GET	/resultados/<categoria>/<mes>	Un registro
-POST	/resultados	Crear registro
-PUT	/resultados/<categoria>/<mes>	Actualizar ingreso_total
-DELETE	/resultados/<categoria>/<mes>	Eliminar registro
+```
 
-Prueba del CRUD:
+| Método | Ruta | Descripción |
+|:---:|---|---|
+| ![GET](https://img.shields.io/badge/GET-61AFFE) | `/dashboard` | Dashboard web |
+| ![GET](https://img.shields.io/badge/GET-61AFFE) | `/resultados` | Todos los registros |
+| ![GET](https://img.shields.io/badge/GET-61AFFE) | `/resultados/<categoria>` | Registros de una categoría |
+| ![GET](https://img.shields.io/badge/GET-61AFFE) | `/resultados/<categoria>/<mes>` | Un registro |
+| ![POST](https://img.shields.io/badge/POST-49CC90) | `/resultados` | Crear registro |
+| ![PUT](https://img.shields.io/badge/PUT-FCA130) | `/resultados/<categoria>/<mes>` | Actualizar `ingreso_total` |
+| ![DELETE](https://img.shields.io/badge/DELETE-F93E3E) | `/resultados/<categoria>/<mes>` | Eliminar registro |
 
-bash
-# Crear
+**Prueba del CRUD:**
+
+```bash
+#  Crear
 curl -X POST http://localhost:5000/resultados \
   -H "Content-Type: application/json" \
   -d '{"categoria":"Ropa","mes":"2026-01","ingreso_total":123.45}'
 
-# Actualizar
+#  Actualizar
 curl -X PUT http://localhost:5000/resultados/Ropa/2026-01 \
   -H "Content-Type: application/json" \
   -d '{"ingreso_total":999.90}'
 
-# Eliminar
+#  Eliminar
 curl -X DELETE http://localhost:5000/resultados/Ropa/2026-01
+```
 
-Esperado: el POST devuelve el registro con 123.45, el PUT lo devuelve con 999.9 y el DELETE responde con {"borrado": {...}}.
+ **Esperado:** el `POST` devuelve el registro con `123.45`, el `PUT` lo devuelve con `999.9` y el `DELETE` responde con `{"borrado": {...}}`.
 
-8. Comprobar la persistencia
-bash
+### 8️ Comprobar la persistencia
+
+```bash
 docker compose down        # sin -v, para conservar el volumen
 docker compose up -d
 curl -s http://localhost:5000/resultados | head -c 200
+```
 
-Esperado: los registros siguen apareciendo sin volver a cargar nada.
+**Esperado:** los registros siguen apareciendo **sin volver a cargar nada**.
 
-Detener y limpiar
-bash
+###  Detener y limpiar
+
+```bash
 docker compose down        # detiene, conserva los datos
 docker compose down -v     # detiene y borra el volumen de PostgreSQL
+```
 
-## Resultado del job
+---
 
-El job produce 120 líneas (`categoria<TAB>AAAA-MM<TAB>ingreso_total`). Resumen en **millones de pesos**:
+##  Resultado del job
+
+El job produce **120 líneas** con el formato `categoria<TAB>AAAA-MM<TAB>ingreso_total`.
+
+Resumen en **millones de pesos**:
 
 | Categoría | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | **Total anual** |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -175,55 +239,150 @@ El job produce 120 líneas (`categoria<TAB>AAAA-MM<TAB>ingreso_total`). Resumen 
 | Ropa | 345.5 | 319.7 | 343.7 | 336.2 | 342.5 | 333.1 | 347.5 | 343.1 | 333.5 | 344.6 | 335.2 | 346.0 | **4,070.6** |
 | **Total mes** | **3,463.4** | **3,129.9** | **3,463.8** | **3,349.4** | **3,454.0** | **3,339.5** | **3,459.3** | **3,457.2** | **3,342.9** | **3,466.8** | **3,355.2** | **3,468.7** | **40,750.2** |
 
-**Interpretación:**
-- Las 10 categorías tienen ingresos anuales casi iguales (entre 4,069 y 4,087 millones; Juguetes es la mayor y Hogar la menor, con menos de 0.5 % de diferencia). Es lo esperado: el generador elige la categoría al azar con la misma probabilidad para todas.
-- La diferencia entre meses depende de **cuántos días tiene el mes**: febrero (28 días) es el más bajo en todas las categorías (~3,130 millones), los meses de 30 días quedan en ~3,340–3,355 y los de 31 días en ~3,455–3,470. La fecha se genera uniforme a lo largo del año, así que cada día recibe en promedio la misma cantidad de ventas.
+###  Interpretación
 
-**Decisiones del código:**
-- La clave del mapper es **compuesta**: `categoria|AAAA-MM`. Se une con `|` porque Hadoop Streaming toma como clave todo lo que está antes del primer TAB; así el shuffle agrupa por categoría *y* mes juntos. El reducer separa la clave al escribir el resultado.
-- El mes se toma de `fecha_hora[:7]` (`"2025-06-26 17:48:55"` → `"2025-06"`), y se valida que sea un mes entre 01 y 12.
-- El mapper emite el ingreso en **centavos (entero)**, así la suma es exacta y el resultado coincide al centavo con el secuencial; con `float` aparecerían diferencias por redondeo.
-- El mapper ignora el encabezado (`campos[0] == "id"`), líneas con un número de columnas distinto de 8, fechas mal formadas y valores no numéricos (`try/except ValueError`), sin detener el job.
-- Se usa un reducer (`-numReduceTasks 1`) para obtener un solo `part-00000` ordenado, que es el archivo que lee `cargar_resultados.py`.
+- **Categorías casi iguales:** los ingresos anuales van de 4,069 a 4,087 millones.  Juguetes es la mayor y Hogar la menor, con **menos de 0.5 %** de diferencia. Es lo esperado: el generador elige la categoría al azar con la misma probabilidad para todas.
+- **Los meses dependen de cuántos días tienen:** la fecha se genera uniforme a lo largo del año, así que cada día recibe en promedio la misma cantidad de ventas.
 
-## Comparativa de rendimiento (C2)
+  | Tipo de mes | Ingreso total aprox. |
+  |---|---:|
+  | Febrero (28 días) | ~3,130 M |
+  | Meses de 30 días | ~3,340 – 3,355 M |
+  | Meses de 31 días | ~3,455 – 3,470 M |
+
+###  Decisiones del código
+
+-  **Clave compuesta** `categoria|AAAA-MM`: se une con `|` porque Hadoop Streaming toma como clave todo lo que está antes del primer TAB; así el shuffle agrupa por categoría **y** mes juntos. El reducer separa la clave al escribir el resultado.
+-  **Mes** tomado de `fecha_hora[:7]` (`"2025-06-26 17:48:55"` → `"2025-06"`), validando que esté entre 01 y 12.
+-  **Centavos enteros:** el mapper emite el ingreso en centavos, así la suma es exacta y coincide al centavo con el secuencial; con `float` aparecerían diferencias por redondeo.
+-  **Datos sucios:** el mapper ignora el encabezado (`campos[0] == "id"`), líneas con un número de columnas distinto de 8, fechas mal formadas y valores no numéricos (`try/except ValueError`), sin detener el job.
+-  **Un solo reducer** (`-numReduceTasks 1`) para obtener un único `part-00000` ordenado, que es el archivo que lee `cargar_resultados.py`.
+
+---
+
+##  Comparativa de rendimiento (C2)
 
 | Método | Tiempo `real` | Resultado |
 |---|---:|---|
-| Hadoop Streaming (standalone) | 19.740 s | 120 registros |
-| `secuencial.py` (línea por línea) | 5.132 s | 120 registros |
-| ¿Coinciden? | `diff` sin diferencias | ✅ |
+|  Hadoop Streaming (standalone) | **19.740 s** | 120 registros |
+|  `secuencial.py` (línea por línea) | **5.132 s** | 120 registros |
+| ¿Coinciden? | `diff` sin diferencias |  |
 
-**¿Por qué el secuencial fue más rápido?** En modo standalone Hadoop corre todo en una sola JVM con el `LocalJobRunner`, sin paralelismo real entre máquinas, así que no gana nada frente a un solo proceso y en cambio paga costos extra: arrancar la JVM y el framework, dividir el archivo en splits de 32 MB, lanzar un proceso de Python por cada tarea, pasar los 5 millones de pares clave-valor como texto por stdin/stdout entre Java y Python, y luego ordenarlos y escribirlos a disco en la fase *shuffle & sort* antes del reducer. El script secuencial lee el archivo una sola vez y acumula solo 120 totales en un diccionario en memoria, sin serializar ni ordenar millones de registros. Con 336 MB el archivo cabe de sobra en una sola máquina, así que la sobrecarga de MapReduce pesa más que su beneficio.
+### ¿Por qué el secuencial fue más rápido?
 
-## Teoría (Parte E)
+En modo standalone Hadoop corre todo en **una sola JVM** con el `LocalJobRunner`, sin paralelismo real entre máquinas. No gana nada frente a un solo proceso y en cambio paga costos extra:
 
-**1. Modos de Hadoop.** En *standalone* (local) todo corre en un solo proceso Java, sin demonios y usando el sistema de archivos local; sirve para desarrollar y depurar. En *pseudo-distribuido* cada demonio (NameNode, DataNode, ResourceManager, NodeManager) corre como proceso separado pero en una sola máquina, comunicándose por SSH/red como si fuera un clúster. En *totalmente distribuido* los demonios se reparten entre varias máquinas reales con replicación de datos. HDFS se usa en pseudo-distribuido y en totalmente distribuido; standalone usa el disco local.
+- ☕ Arrancar la JVM y el framework.
+-  Dividir el archivo en splits de 32 MB.
+-  Lanzar un proceso de Python por cada tarea.
+-  Pasar los 5 millones de pares clave-valor como texto por stdin/stdout entre Java y Python.
+-  Ordenarlos y escribirlos a disco en la fase *shuffle & sort* antes del reducer.
 
-**2. Volumen vs `COPY`.** (a) Tamaño: copiar 400 MB dentro de la imagen la hace enorme, lenta de construir y de distribuir. (b) Los datos cambian independientemente del código: con un volumen se reemplaza el CSV sin reconstruir la imagen, y cada alumno monta su propio archivo con la misma imagen. (c) Seguridad y repositorio: el dataset no queda dentro de las capas de la imagen ni en Git. Además, `:ro` garantiza que el contenedor no lo modifique.
+El script secuencial lee el archivo **una sola vez** y acumula solo 120 totales en un diccionario en memoria, sin serializar ni ordenar millones de registros. Con 336 MB el archivo cabe de sobra en una sola máquina, así que la sobrecarga de MapReduce pesa más que su beneficio.
 
-**3. `down` vs `down -v`.** `docker compose down` detiene y elimina los contenedores y la red, pero los volúmenes nombrados (`pg_data`) se conservan, así que al volver a levantar los datos siguen ahí. `docker compose down -v` además borra los volúmenes nombrados declarados en el compose, por lo que la base de datos se pierde y hay que volver a cargar los resultados (y en este proyecto también se borran la salida del job y las llaves SSH, que se regeneran al arrancar).
+---
 
-**4. ¿Por qué MapReduce no siempre es más rápido?** Con 400 MB el problema cabe en memoria de una sola máquina y el costo fijo de MapReduce (arranque de JVM, planificación de tareas, serialización, shuffle/sort a disco) es mayor que el trabajo útil. MapReduce conviene cuando los datos son demasiado grandes para una sola máquina (decenas de GB a TB), cuando hay un clúster real con varios nodos que procesan bloques en paralelo cerca de donde están guardados (localidad de datos en HDFS), y cuando se necesita tolerancia a fallos en trabajos largos.
+##  Teoría (Parte E)
 
-**5. `CMD` vs `ENTRYPOINT`, `COPY` vs `ADD`.** `ENTRYPOINT` define el ejecutable fijo del contenedor; `CMD` define el comando o los argumentos por defecto, que se reemplazan fácilmente con `docker run imagen otro_comando`. Combinados, `CMD` se pasa como argumentos al `ENTRYPOINT` (aquí `entrypoint.sh` prepara las llaves y luego ejecuta `sshd -D` que viene del `CMD`). `COPY` solo copia archivos del contexto de construcción; `ADD` además descomprime automáticamente archivos `.tar` locales y puede descargar URLs. Se recomienda `COPY` salvo que se necesite esa función extra.
+<details>
+<summary><b>1. Modos de Hadoop</b></summary>
 
-## Evidencias
+<br>
 
-Las salidas de comandos y las verificaciones ejecutadas se guardan en `evidencias/`:
+| Modo | Cómo funciona | Sistema de archivos | Uso |
+|---|---|---|---|
+| **Standalone** (local) | Todo en un solo proceso Java, sin demonios | Disco local | Desarrollar y depurar |
+| **Pseudo-distribuido** | Cada demonio (NameNode, DataNode, ResourceManager, NodeManager) es un proceso separado en una sola máquina, comunicándose por SSH/red como si fuera un clúster | HDFS | Pruebas que simulan un clúster |
+| **Totalmente distribuido** | Demonios repartidos entre varias máquinas reales con replicación de datos | HDFS | Producción |
 
-- `hadoop_version.txt` — versión Hadoop 3.3.6.
-- `ssh_localhost.txt` y `ssh_api_hadoop.txt` — acceso por llave desde ambos contenedores.
-- `job.log` — salida de MapReduce y secuencial, tiempos medidos y comparación exacta.
-- `api_crud.txt` — respuestas GET, POST, PUT y DELETE; termina con los 120 registros originales.
-- `persistencia.txt` — reinicio con `docker compose down` / `up` y verificación de los 120 registros.
-- `dashboard.png` — captura de la vista visual de resultados.
+</details>
 
-## Guía rápida para la defensa oral
+<details>
+<summary><b>2. Volumen vs <code>COPY</code></b></summary>
 
-- **Cambiar el puerto de la API:** editar `API_PORT` en `.env` → `docker compose up -d api` → `curl http://localhost:NUEVO/resultados`. El puerto interno de Flask sigue siendo 5000; solo cambia el del host.
-- **De suma a promedio:** en `reducer.py` llevar también un contador (`conteo_actual += 1` por línea) y al emitir escribir `suma / conteo`. Así sale el ingreso promedio por venta en cada categoría y mes.
-- **Filtrar por un mes:** en `mapper.py`, justo antes del `print`, agregar `if mes != "2025-03": continue`.
-- **Agrupar solo por categoría (sin mes):** cambiar la clave del mapper a `print(f"{categoria}\t{...}")` y adaptar `emitir()` del reducer.
-- **Borrar el volumen y recargar:** `docker compose down -v` → `docker compose up -d` → `run_job.sh` → `cargar_resultados.py`.
-- **Si algo falla:** `docker compose logs hadoop` / `docker compose logs api`; si el job dice que la salida ya existe, borrar `/data/output/resultado` (el script ya lo hace); si `ssh` pide contraseña, revisar permisos de `~/.ssh` (700) y `authorized_keys` (600).
+<br>
+
+- **Tamaño:** copiar 400 MB dentro de la imagen la hace enorme, lenta de construir y de distribuir.
+- **Independencia:** los datos cambian independientemente del código. Con un volumen se reemplaza el CSV sin reconstruir la imagen, y cada alumno monta su propio archivo con la misma imagen.
+- **Seguridad y repositorio:** el dataset no queda dentro de las capas de la imagen ni en Git. Además, `:ro` garantiza que el contenedor no lo modifique.
+
+</details>
+
+<details>
+<summary><b>3. <code>down</code> vs <code>down -v</code></b></summary>
+
+<br>
+
+| Comando | Contenedores y red | Volúmenes nombrados |
+|---|:---:|:---:|
+| `docker compose down` |  Se eliminan |  Se conservan |
+| `docker compose down -v` |  Se eliminan |  Se borran |
+
+Con `-v` la base de datos se pierde y hay que volver a cargar los resultados. En este proyecto también se borran la salida del job y las llaves SSH, que se regeneran al arrancar.
+
+</details>
+
+<details>
+<summary><b>4. ¿Por qué MapReduce no siempre es más rápido?</b></summary>
+
+<br>
+
+Con 400 MB el problema cabe en memoria de una sola máquina y el **costo fijo** de MapReduce (arranque de JVM, planificación de tareas, serialización, shuffle/sort a disco) es mayor que el trabajo útil.
+
+MapReduce conviene cuando:
+
+- Los datos son demasiado grandes para una sola máquina (decenas de GB a TB).
+- Hay un clúster real con varios nodos que procesan bloques en paralelo cerca de donde están guardados (**localidad de datos** en HDFS).
+- Se necesita **tolerancia a fallos** en trabajos largos.
+
+</details>
+
+<details>
+<summary><b>5. <code>CMD</code> vs <code>ENTRYPOINT</code>, <code>COPY</code> vs <code>ADD</code></b></summary>
+
+<br>
+
+- **`ENTRYPOINT`** define el ejecutable fijo del contenedor.
+- **`CMD`** define el comando o los argumentos por defecto, que se reemplazan fácilmente con `docker run imagen otro_comando`.
+- Combinados, `CMD` se pasa como argumentos al `ENTRYPOINT`. Aquí `entrypoint.sh` prepara las llaves y luego ejecuta `sshd -D`, que viene del `CMD`.
+
+---
+
+- **`COPY`** solo copia archivos del contexto de construcción.
+- **`ADD`** además descomprime automáticamente archivos `.tar` locales y puede descargar URLs.
+- Se recomienda `COPY` salvo que se necesite esa función extra.
+
+</details>
+
+---
+
+##  Evidencias
+
+Las salidas de comandos y las verificaciones se guardan en [`evidencias/`](evidencias/):
+
+| Archivo | Contenido |
+|---|---|
+| `hadoop_version.txt` | Versión Hadoop 3.3.6 |
+| `ssh_localhost.txt` · `ssh_api_hadoop.txt` | Acceso por llave desde ambos contenedores |
+| `job.log` | Salida de MapReduce y secuencial, tiempos medidos y comparación exacta |
+| `api_crud.txt` | Respuestas GET, POST, PUT y DELETE; termina con los 120 registros originales |
+| `persistencia.txt` | Reinicio con `docker compose down` / `up` y verificación de los 120 registros |
+| `dashboard.png` | Captura de la vista visual de resultados |
+
+---
+
+##  Guía rápida para la defensa oral
+
+| Si me piden… | Qué hago |
+|---|---|
+| 🔌 **Cambiar el puerto de la API** | Editar `API_PORT` en `.env` → `docker compose up -d api` → `curl http://localhost:NUEVO/resultados`. El puerto interno de Flask sigue siendo 5000; solo cambia el del host. |
+|  **De suma a promedio** | En `reducer.py` llevar también un contador (`conteo_actual += 1` por línea) y al emitir escribir `suma / conteo`. Así sale el ingreso promedio por venta en cada categoría y mes. |
+|  **Filtrar por un mes** | En `mapper.py`, justo antes del `print`, agregar `if mes != "2025-03": continue`. |
+|  **Agrupar solo por categoría** | Cambiar la clave del mapper a `print(f"{categoria}\t{...}")` y adaptar `emitir()` del reducer. |
+|  **Borrar el volumen y recargar** | `docker compose down -v` → `docker compose up -d` → `run_job.sh` → `cargar_resultados.py`. |
+
+###  Si algo falla
+
+- Ver logs: `docker compose logs hadoop` / `docker compose logs api`.
+- Si el job dice que la salida ya existe, borrar `/data/output/resultado` (el script ya lo hace).
+- Si `ssh` pide contraseña, revisar permisos: `~/.ssh` → `700` y `authorized_keys` → `600`.
